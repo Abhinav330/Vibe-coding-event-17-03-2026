@@ -1,5 +1,7 @@
 # Hops and Harmonies
 
+Vibe-coding-event-17-03-2026
+
 A [Bun](https://bun.sh) project with TypeScript, tests, and Biome for lint/format.
 
 ## Prerequisites
