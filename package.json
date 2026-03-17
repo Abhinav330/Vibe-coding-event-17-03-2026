@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --watch brewbeats/backend/index.ts",
+    "dev": "sh -c 'P=$(lsof -ti :4000); [ -n \"$P\" ] && kill $P 2>/dev/null; true' && bun run --watch brewbeats/backend/index.ts",
     "dev:ui": "cd brewbeats/ui && npm run dev",
+    "dev:all": "./dev.sh",
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir=dist --target=bun",
     "test": "bun test",

@@ -13,7 +13,13 @@ const API = {
   pairingTried: () => fetch("/api/pairing-tried", { method: "POST" }).then((r) => r.json()),
 };
 
-type Beer = { name: string; img: string; style: string; buy: string };
+type Drink = {
+  name: string;
+  img: string;
+  style: string;
+  buy: string;
+  type?: "beer" | "wine" | "whisky";
+};
 type Profile = {
   points: number;
   level: string;
@@ -23,11 +29,23 @@ type Profile = {
 };
 
 const VALID_HOSTS = ["youtube.com", "youtu.be", "spotify.com", "soundcloud.com"];
+const DIRECT_AUDIO_EXT = [".mp3", ".wav", ".ogg", ".m4a", ".aac"];
 
 function isValidUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    return VALID_HOSTS.some((h) => u.hostname.includes(h));
+    if (!u.protocol.startsWith("http")) return false;
+    return VALID_HOSTS.some((h) => u.hostname.includes(h)) || isDirectAudioUrl(url);
+  } catch {
+    return false;
+  }
+}
+
+/** True if the URL is a direct audio file we can play and analyze in real time */
+function isDirectAudioUrl(url: string): boolean {
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    return DIRECT_AUDIO_EXT.some((ext) => path.endsWith(ext));
   } catch {
     return false;
   }
@@ -40,7 +58,10 @@ export default function App() {
     country: string;
     vibe?: { energy: number; mood: string; tempo: string };
   } | null>(null);
-  const [beers, setBeers] = useState<Beer[]>([]);
+  const [beers, setBeers] = useState<Drink[]>([]);
+  const [leaderboard, setLeaderboard] = useState<
+    { userId: string; points: number; level: string }[]
+  >([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
   const [beersLoading, setBeersLoading] = useState(false);
@@ -73,6 +94,17 @@ export default function App() {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  const loadLeaderboard = useCallback(() => {
+    fetch("/api/leaderboard")
+      .then((r) => r.json())
+      .then(setLeaderboard)
+      .catch(() => setLeaderboard([]));
+  }, []);
+
+  useEffect(() => {
+    loadLeaderboard();
+  }, [loadLeaderboard]);
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
     const text = e.clipboardData.getData("text").trim();
@@ -119,9 +151,10 @@ export default function App() {
       .then((data) => {
         setProfile((p) => (p ? { ...p, points: data.points, level: data.level } : null));
         loadProfile();
+        loadLeaderboard();
       })
       .catch(() => setPairingTried(false));
-  }, [pairingTried, loadProfile]);
+  }, [pairingTried, loadProfile, loadLeaderboard]);
 
   return (
     <div className="app">
@@ -182,9 +215,13 @@ export default function App() {
               ref={audioRef}
               controls
               className="audio-player"
-              src={url.startsWith("http") ? undefined : undefined}
+              src={isDirectAudioUrl(url) ? url : undefined}
             />
-            <p className="player-hint">Paste a real track URL to play. Stub analysis only.</p>
+            <p className="player-hint">
+              {isDirectAudioUrl(url)
+                ? "Direct audio: play to see live vibe and real-time recommendations."
+                : "Paste a track URL (or a direct .mp3/.wav link) for vibe-based pairings."}
+            </p>
           </div>
         </section>
       )}
@@ -197,14 +234,34 @@ export default function App() {
 
       {beers.length > 0 && (
         <section className="beers-section">
-          <h2>Based on this vibe we recommend</h2>
+          <h2>
+            {trackInfo?.vibe || liveVibe
+              ? `We recommend ${beers[0]?.type ?? "beer"} for this ${liveVibe?.mood ?? trackInfo?.vibe?.mood ?? "vibe"} vibe`
+              : "Based on this vibe we recommend"}
+          </h2>
           <div className="beer-grid">
-            {beers.map((beer) => (
-              <BeerCard key={beer.name} beer={beer} onTry={handlePairingTried} />
+            {beers.map((drink) => (
+              <DrinkCard key={drink.name} drink={drink} onTry={handlePairingTried} />
             ))}
           </div>
         </section>
       )}
+
+      <section className="leaderboard-section">
+        <h2>Leaderboard (Top 10)</h2>
+        {leaderboard.length > 0 ? (
+          <ol className="leaderboard-list">
+            {leaderboard.map((entry, i) => (
+              <li key={entry.userId}>
+                <span className="rank">{i + 1}.</span> {entry.userId}: {entry.points} pts ·{" "}
+                {entry.level}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="muted">No scores yet. Try a pairing to earn points!</p>
+        )}
+      </section>
 
       {beers.length > 0 && !pairingTried && (
         <p className="try-hint">Try a pairing to earn +10 points!</p>
@@ -213,20 +270,21 @@ export default function App() {
   );
 }
 
-function BeerCard({
-  beer,
+function DrinkCard({
+  drink,
   onTry,
 }: {
-  beer: Beer;
+  drink: Drink;
   onTry: () => void;
 }) {
   return (
     <article className="beer-card">
-      <img src={beer.img} alt="" className="beer-img" />
-      <h3 className="beer-name">{beer.name}</h3>
-      <p className="beer-style">{beer.style}</p>
+      {drink.type && <span className="drink-type-tag">{drink.type}</span>}
+      <img src={drink.img} alt="" className="beer-img" />
+      <h3 className="beer-name">{drink.name}</h3>
+      <p className="beer-style">{drink.style}</p>
       <a
-        href={beer.buy}
+        href={drink.buy}
         target="_blank"
         rel="noopener noreferrer"
         className="buy-btn"

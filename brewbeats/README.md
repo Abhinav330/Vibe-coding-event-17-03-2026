@@ -1,6 +1,6 @@
 # BrewBeats
 
-Paste a music URL (YouTube/Spotify/SoundCloud) → get beer pairings by country/culture. Gamified with points, levels, and badges.
+Paste a music URL (YouTube/Spotify/SoundCloud) → get **vibe-based alcohol recommendations** (beer, wine, or whisky). Sad/melancholic → whisky; romantic → wine; party/chill/etc → beer. Recommendations update in real time when playing direct audio. Gamified with points, levels, and leaderboard.
 
 ## EARS Core
 
@@ -38,8 +38,9 @@ Then open http://localhost:3000, paste a URL, and get beers + earn points.
 
 | Endpoint         | Method | Description                    |
 |------------------|--------|--------------------------------|
-| `/analyze?url=...` | POST | Returns `{ genre, country }`   |
-| `/beers?country=DE` | GET  | Returns 3 beers with img/buy   |
+| `/analyze?url=...` | POST | Returns `{ genre, country, vibe }` (mood/energy/tempo) |
+| `/beers?country=DE&mood=...` | GET  | Vibe-based: returns beer, wine, or whisky by mood |
+| `/leaderboard`   | GET  | Top 10 by points               |
 | `/profile`        | GET  | Points, level, streak, badges  |
 | `/pairing-tried`  | POST | +10 pts for trying a pairing  |
 

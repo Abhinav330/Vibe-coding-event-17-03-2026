@@ -34,7 +34,8 @@ export function useLiveVibe(
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const rafRef = useRef<number>(0);
   const lastEmitRef = useRef<number>(0);
-  const intervalMs = options?.intervalMs ?? 500;
+  const onVibeChangeRef = useRef(onVibeChange);
+  onVibeChangeRef.current = onVibeChange;
   const debounceMs = options?.debounceMs ?? 3000;
 
   const stop = useCallback(() => {
@@ -90,9 +91,9 @@ export function useLiveVibe(
         setLiveVibe({ energy, mood });
 
         const now = Date.now();
-        if (onVibeChange && now - lastEmitRef.current >= debounceMs) {
+        if (onVibeChangeRef.current && now - lastEmitRef.current >= debounceMs) {
           lastEmitRef.current = now;
-          onVibeChange({ energy, mood });
+          onVibeChangeRef.current({ energy, mood });
         }
 
         rafRef.current = requestAnimationFrame(tick);
@@ -112,7 +113,7 @@ export function useLiveVibe(
       el.removeEventListener("ended", onEnded);
       stop();
     };
-  }, [audioRef, stop, onVibeChange, debounceMs]);
+  }, [audioRef, stop, debounceMs]);
 
   return liveVibe;
 }

@@ -101,10 +101,33 @@
 
 .track-info {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
   margin-bottom: 0.75rem;
   font-size: 0.9rem;
   color: var(--muted);
+}
+
+.track-info .vibe-first {
+  width: 100%;
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.track-info .vibe-first strong {
+  color: var(--accent);
+}
+
+.track-info .live-vibe {
+  width: 100%;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.track-info .live-vibe strong {
+  color: var(--text);
 }
 
 .player-wrap {
@@ -185,5 +208,80 @@
 .try-hint {
   text-align: center;
   font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Toast: invalid URL / errors */
+.toast {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.9rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Loading spinner */
+.spinner-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.vibe-first {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.drink-type-tag {
+  display: inline-block;
+  text-transform: capitalize;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: var(--border);
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.leaderboard-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+.leaderboard-section h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.leaderboard-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.leaderboard-list .rank {
+  font-weight: 600;
+  color: var(--text);
+  margin-right: 0.25rem;
+}
+.leaderboard-section .muted {
+  margin: 0;
+  font-size: 0.9rem;
   color: var(--muted);
 }
