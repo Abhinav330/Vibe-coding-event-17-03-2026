@@ -22,7 +22,17 @@ export type Vibe = {
   tempo: "slow" | "medium" | "fast";
 };
 
-function mockAnalyze(url: string): { genre: string; country: string; vibe: Vibe } {
+function isPlaylistUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  return lower.includes("/playlist") || lower.includes("list=") || lower.includes("/sets/");
+}
+
+function mockAnalyze(url: string): {
+  genre: string;
+  country: string;
+  vibe: Vibe;
+  isPlaylist: boolean;
+} {
   const hash = url.split("").reduce((a, c) => (a + c.charCodeAt(0)) | 0, 0);
   const moods: Vibe["mood"][] = [
     "chill",
@@ -53,28 +63,44 @@ function mockAnalyze(url: string): { genre: string; country: string; vibe: Vibe 
       mood,
       tempo,
     },
+    isPlaylist: isPlaylistUrl(url),
   };
 }
 
-// --- Alcohol matcher: vibe → real-time recommendation (beer / wine / whisky) ---
+// --- Alcohol matcher: vibe → real-time recommendation (beer / wine / whisky / cider) ---
+type Pricing = { company: string; price: string; url: string };
+type DrinkType = "beer" | "wine" | "whisky" | "cider";
 type Drink = {
   name: string;
   img: string;
   style: string;
   buy: string;
-  type: "beer" | "wine" | "whisky";
+  type: DrinkType;
+  pricings?: Pricing[];
 };
 
-/** Vibe → alcohol type: sad/melancholic → whisky, romantic → wine, else beer */
-const VIBE_TO_ALCOHOL_TYPE: Record<string, "beer" | "wine" | "whisky"> = {
+/** Vibe → alcohol type: melancholic → whisky, romantic → wine, uplifting/chill → cider, else beer */
+const VIBE_TO_ALCOHOL_TYPE: Record<string, DrinkType> = {
   melancholic: "whisky",
   romantic: "wine",
-  chill: "beer",
+  uplifting: "cider",
+  chill: "cider",
   party: "beer",
-  uplifting: "beer",
   intense: "beer",
   groovy: "beer",
 };
+
+/** Deterministic shuffle so different seeds (e.g. track URL) give different recommendation order/set */
+function seededShuffle<T>(arr: T[], seed: string): T[] {
+  const out = [...arr];
+  let h = seed.split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0);
+  for (let i = out.length - 1; i > 0; i--) {
+    h = (h * 1103515245 + 12345) & 0x7fffffff;
+    const j = h % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
 
 /** Mood → beer styles for when we recommend beer */
 const VIBE_TO_BEER_STYLES: Record<string, string[]> = {
@@ -94,6 +120,11 @@ const WINES: Drink[] = [
     style: "Red",
     buy: "https://www.wine.com",
     type: "wine",
+    pricings: [
+      { company: "Wine.com", price: "$18.99", url: "https://www.wine.com" },
+      { company: "Total Wine", price: "$16.49", url: "https://www.totalwine.com" },
+      { company: "Drizly", price: "$19.99", url: "https://www.drizly.com" },
+    ],
   },
   {
     name: "Chardonnay",
@@ -101,6 +132,11 @@ const WINES: Drink[] = [
     style: "White",
     buy: "https://www.wine.com",
     type: "wine",
+    pricings: [
+      { company: "Wine.com", price: "$14.99", url: "https://www.wine.com" },
+      { company: "Vivino", price: "$13.50", url: "https://www.vivino.com" },
+      { company: "Total Wine", price: "$15.99", url: "https://www.totalwine.com" },
+    ],
   },
   {
     name: "Rosé",
@@ -108,6 +144,32 @@ const WINES: Drink[] = [
     style: "Rosé",
     buy: "https://www.wine.com",
     type: "wine",
+    pricings: [
+      { company: "Wine.com", price: "$12.99", url: "https://www.wine.com" },
+      { company: "Drizly", price: "$14.49", url: "https://www.drizly.com" },
+    ],
+  },
+  {
+    name: "Prosecco",
+    img: "https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?w=200",
+    style: "Sparkling",
+    buy: "https://www.wine.com",
+    type: "wine",
+    pricings: [
+      { company: "Wine.com", price: "$14.99", url: "https://www.wine.com" },
+      { company: "Total Wine", price: "$12.99", url: "https://www.totalwine.com" },
+    ],
+  },
+  {
+    name: "Malbec",
+    img: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=200",
+    style: "Red",
+    buy: "https://www.wine.com",
+    type: "wine",
+    pricings: [
+      { company: "Vivino", price: "$11.99", url: "https://www.vivino.com" },
+      { company: "Drizly", price: "$13.49", url: "https://www.drizly.com" },
+    ],
   },
 ];
 
@@ -118,6 +180,11 @@ const WHISKIES: Drink[] = [
     style: "Single Malt",
     buy: "https://www.thewhiskyexchange.com",
     type: "whisky",
+    pricings: [
+      { company: "The Whisky Exchange", price: "£42.00", url: "https://www.thewhiskyexchange.com" },
+      { company: "Master of Malt", price: "£38.50", url: "https://www.masterofmalt.com" },
+      { company: "Drizly", price: "$48.99", url: "https://www.drizly.com" },
+    ],
   },
   {
     name: "Bourbon",
@@ -125,6 +192,10 @@ const WHISKIES: Drink[] = [
     style: "Bourbon",
     buy: "https://www.thewhiskyexchange.com",
     type: "whisky",
+    pricings: [
+      { company: "The Whisky Exchange", price: "£35.00", url: "https://www.thewhiskyexchange.com" },
+      { company: "Total Wine", price: "$32.99", url: "https://www.totalwine.com" },
+    ],
   },
   {
     name: "Irish Whiskey",
@@ -132,10 +203,88 @@ const WHISKIES: Drink[] = [
     style: "Irish",
     buy: "https://www.thewhiskyexchange.com",
     type: "whisky",
+    pricings: [
+      { company: "The Whisky Exchange", price: "£28.00", url: "https://www.thewhiskyexchange.com" },
+      { company: "Drizly", price: "$34.99", url: "https://www.drizly.com" },
+      { company: "Master of Malt", price: "£26.00", url: "https://www.masterofmalt.com" },
+    ],
+  },
+  {
+    name: "Rye Whiskey",
+    img: "https://images.unsplash.com/photo-1579684947550-22e945225d9a?w=200",
+    style: "Rye",
+    buy: "https://www.thewhiskyexchange.com",
+    type: "whisky",
+    pricings: [
+      { company: "The Whisky Exchange", price: "£32.00", url: "https://www.thewhiskyexchange.com" },
+      { company: "Total Wine", price: "$29.99", url: "https://www.totalwine.com" },
+    ],
+  },
+  {
+    name: "Japanese Whisky",
+    img: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200",
+    style: "Blended",
+    buy: "https://www.thewhiskyexchange.com",
+    type: "whisky",
+    pricings: [
+      { company: "Master of Malt", price: "£45.00", url: "https://www.masterofmalt.com" },
+      { company: "Drizly", price: "$52.99", url: "https://www.drizly.com" },
+    ],
+  },
+];
+
+const CIDERS: Drink[] = [
+  {
+    name: "Rekorderlig Strawberry-Lime",
+    img: "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=200",
+    style: "Fruit Cider",
+    buy: "https://www.amazon.com/s?k=cider",
+    type: "cider",
+    pricings: [
+      { company: "Amazon", price: "£2.49", url: "https://www.amazon.com/s?k=cider" },
+      { company: "Beerwulf", price: "€2.99", url: "https://www.beerwulf.com" },
+    ],
+  },
+  {
+    name: "Thatchers Gold",
+    img: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=200",
+    style: "Dry Cider",
+    buy: "https://www.amazon.com/s?k=cider",
+    type: "cider",
+    pricings: [
+      { company: "Amazon", price: "£3.19", url: "https://www.amazon.com/s?k=cider" },
+      { company: "Tesco", price: "£2.89", url: "https://www.tesco.com" },
+    ],
+  },
+  {
+    name: "Strongbow Dark Fruit",
+    img: "https://images.unsplash.com/photo-1571613316887-6f8d5cbf7ef7?w=200",
+    style: "Fruit Cider",
+    buy: "https://www.amazon.com/s?k=cider",
+    type: "cider",
+    pricings: [
+      { company: "Amazon", price: "£2.99", url: "https://www.amazon.com/s?k=cider" },
+      { company: "Drizly", price: "$4.99", url: "https://www.drizly.com" },
+    ],
   },
 ];
 
 type Beer = { name: string; img: string; style: string; buy: string };
+
+/** Attach 2–3 company pricings to a beer (primary buy link + alternatives). */
+function beerPricings(beer: Beer): Pricing[] {
+  let primary = "Store";
+  try {
+    primary = new URL(beer.buy).hostname.replace(/^www\./, "");
+  } catch {
+    // keep "Store"
+  }
+  return [
+    { company: primary, price: "€4.99", url: beer.buy },
+    { company: "Beerwulf", price: "€5.49", url: "https://www.beerwulf.com" },
+    { company: "Amazon", price: "£5.99", url: "https://www.amazon.com/s?k=beer" },
+  ];
+}
 
 const BEERS_BY_COUNTRY: Record<string, Beer[]> = {
   DE: [
@@ -283,6 +432,15 @@ type Profile = {
 
 const store = new Map<string, Profile>();
 
+type ConnectionEntry = {
+  id: string;
+  trackOrPlaylist: string;
+  drinkName: string;
+  timestamp: string;
+};
+const historyByUser = new Map<string, ConnectionEntry[]>();
+const MAX_HISTORY = 20;
+
 function ensureProfile(userId: string): Profile {
   let p = store.get(userId);
   if (!p) {
@@ -323,7 +481,7 @@ function updateStreak(profile: Profile): void {
 // --- Single server ---
 const server = Bun.serve({
   port: PORT,
-  fetch(req) {
+  async fetch(req) {
     const url = new URL(req.url);
     if (req.method === "OPTIONS") {
       return new Response(null, { headers: CORS });
@@ -343,15 +501,29 @@ const server = Bun.serve({
     if (url.pathname === "/beers" && req.method === "GET") {
       const country = (url.searchParams.get("country") ?? "DE").toUpperCase();
       const mood = (url.searchParams.get("mood") ?? "").toLowerCase();
+      const seed = url.searchParams.get("seed") ?? "";
       const alcoholType = mood && VIBE_TO_ALCOHOL_TYPE[mood] ? VIBE_TO_ALCOHOL_TYPE[mood] : "beer";
 
       let drinks: Drink[];
       if (alcoholType === "whisky") {
-        drinks = [...WHISKIES];
+        drinks = seed ? seededShuffle([...WHISKIES], seed) : [...WHISKIES];
       } else if (alcoholType === "wine") {
-        drinks = [...WINES];
+        drinks = seed ? seededShuffle([...WINES], seed) : [...WINES];
+      } else if (alcoholType === "cider") {
+        drinks = seed ? seededShuffle([...CIDERS], seed) : [...CIDERS];
       } else {
-        let beers = BEERS_BY_COUNTRY[country] ?? DEFAULT_BEERS;
+        const primary = BEERS_BY_COUNTRY[country] ?? DEFAULT_BEERS;
+        const otherCountry =
+          COUNTRIES[
+            (COUNTRIES.indexOf(country as (typeof COUNTRIES)[number]) + 1) % COUNTRIES.length
+          ];
+        const secondary = BEERS_BY_COUNTRY[otherCountry] ?? DEFAULT_BEERS;
+        const seen = new Set<string>();
+        let beers = [...primary, ...secondary].filter((b) => {
+          if (seen.has(b.name)) return false;
+          seen.add(b.name);
+          return true;
+        });
         if (mood && VIBE_TO_BEER_STYLES[mood]) {
           const preferred = new Set(VIBE_TO_BEER_STYLES[mood].map((s) => s.toLowerCase()));
           const matching = beers.filter((b) => preferred.has(b.style.toLowerCase()));
@@ -364,9 +536,16 @@ const server = Bun.serve({
                   return (bM ? 1 : 0) - (aM ? 1 : 0);
                 });
         }
-        drinks = beers.map((b) => ({ ...b, type: "beer" as const }));
+        drinks = beers.map((b) => ({
+          ...b,
+          type: "beer" as const,
+          pricings: beerPricings(b),
+        }));
+        if (seed) drinks = seededShuffle(drinks, seed);
       }
-      return Response.json(drinks, { headers: CORS });
+      const minThree =
+        drinks.length >= 3 ? drinks.slice(0, 3) : [...drinks, ...drinks, ...drinks].slice(0, 3);
+      return Response.json(minThree, { headers: CORS });
     }
 
     // Gamification
@@ -380,7 +559,27 @@ const server = Bun.serve({
       profile.points += POINTS_PAIRING;
       updateStreak(profile);
       updateLevel(profile);
+      // Record connection history if body provided
+      try {
+        const body = await req.json().catch(() => ({}));
+        const trackOrPlaylist = (body.trackOrPlaylist as string) || "Track";
+        const drinkName = (body.drinkName as string) || "Pairing";
+        const list = historyByUser.get(userId) ?? [];
+        list.unshift({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          trackOrPlaylist,
+          drinkName,
+          timestamp: new Date().toISOString(),
+        });
+        historyByUser.set(userId, list.slice(0, MAX_HISTORY));
+      } catch {
+        // ignore
+      }
       return Response.json({ points: profile.points, level: profile.level }, { headers: CORS });
+    }
+    if (url.pathname === "/history" && req.method === "GET") {
+      const list = historyByUser.get(userId) ?? [];
+      return Response.json(list, { headers: CORS });
     }
     if (url.pathname === "/favorite" && req.method === "POST") {
       const profile = ensureProfile(userId);

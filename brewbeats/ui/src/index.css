@@ -1,11 +1,12 @@
 :root {
-  --bg: #0f0f12;
-  --surface: #1a1a1f;
-  --border: #2a2a32;
-  --text: #e8e8ec;
-  --muted: #8888a0;
-  --accent: #c9a227;
-  --accent-hover: #e0b83d;
+  --bg: #0d0d0f;
+  --surface: #1a1a1e;
+  --border: #2e2e34;
+  --text: #f0f0f2;
+  --muted: #9a9aa8;
+  --accent: #39ff14;
+  --accent-hover: #5fff3d;
+  --accent-glow: rgba(57, 255, 20, 0.4);
   --error: #e05c5c;
   --radius: 12px;
 }
