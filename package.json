@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
+    "dev:analyzer": "cd brewbeats/backend/analyzer && bun run dev",
+    "dev:beers": "cd brewbeats/backend/beer-matcher && bun run dev",
+    "dev:gamify": "cd brewbeats/gamify && bun run dev",
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir=dist --target=bun",
     "test": "bun test",
