@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
+import { useLiveVibe } from "./useLiveVibe";
 
 const API = {
   analyze: (url: string) =>
-    fetch(`/api/analyzer/analyze?url=${encodeURIComponent(url)}`, { method: "POST" }).then((r) =>
-      r.json(),
-    ),
-  beers: (country: string, level?: number) =>
-    fetch(`/api/beers/beers?country=${country}${level != null ? `&level=${level}` : ""}`).then(
-      (r) => r.json(),
-    ),
-  profile: () => fetch("/api/gamify/profile").then((r) => r.json()),
-  pairingTried: () => fetch("/api/gamify/pairing-tried", { method: "POST" }).then((r) => r.json()),
+    fetch(`/api/analyze?url=${encodeURIComponent(url)}`, { method: "POST" }).then((r) => r.json()),
+  beers: (country: string, level?: number, vibe?: { mood: string; energy: number }) =>
+    fetch(
+      `/api/beers?country=${country}${level != null ? `&level=${level}` : ""}${vibe?.mood ? `&mood=${encodeURIComponent(vibe.mood)}&energy=${vibe.energy}` : ""}`,
+    ).then((r) => r.json()),
+  profile: () => fetch("/api/profile").then((r) => r.json()),
+  pairingTried: () => fetch("/api/pairing-tried", { method: "POST" }).then((r) => r.json()),
 };
 
 type Beer = { name: string; img: string; style: string; buy: string };
@@ -36,7 +35,11 @@ function isValidUrl(url: string): boolean {
 
 export default function App() {
   const [url, setUrl] = useState("");
-  const [trackInfo, setTrackInfo] = useState<{ genre: string; country: string } | null>(null);
+  const [trackInfo, setTrackInfo] = useState<{
+    genre: string;
+    country: string;
+    vibe?: { energy: number; mood: string; tempo: string };
+  } | null>(null);
   const [beers, setBeers] = useState<Beer[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,6 +47,22 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [pairingTried, setPairingTried] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const onLiveVibeChange = useCallback(
+    (vibe: { energy: number; mood: string }) => {
+      if (!trackInfo?.country) return;
+      const level = profile?.levelIndex ?? 0;
+      API.beers(trackInfo.country, level + 1, {
+        mood: vibe.mood,
+        energy: vibe.energy,
+      })
+        .then((list) => setBeers(Array.isArray(list) ? list : []))
+        .catch(() => {});
+    },
+    [trackInfo?.country, profile?.levelIndex],
+  );
+
+  const liveVibe = useLiveVibe(audioRef, onLiveVibeChange, { debounceMs: 4000 });
 
   const loadProfile = useCallback(() => {
     API.profile()
@@ -79,7 +98,8 @@ export default function App() {
         setTrackInfo(analysis);
         setBeersLoading(true);
         const level = profile?.levelIndex ?? 0;
-        const list = await API.beers(analysis.country, level + 1);
+        // Recommend alcohol based on vibe first (read vibe → then recommend)
+        const list = await API.beers(analysis.country, level + 1, analysis.vibe);
         setBeers(Array.isArray(list) ? list : []);
         setPairingTried(false);
       } catch (err) {
@@ -106,7 +126,8 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>BrewBeats</h1>
+        <img src="/logo.png" alt="Hops and Harmonies" className="logo" />
+        <h1>Hops and Harmonies</h1>
         <p className="tagline">Paste a track → get beer pairings</p>
         {profile != null && (
           <div className="badges">
@@ -140,6 +161,18 @@ export default function App() {
       {trackInfo && (
         <section className="track-section">
           <div className="track-info">
+            {trackInfo.vibe && (
+              <p className="vibe-first">
+                We read the vibe: <strong>{trackInfo.vibe.mood}</strong> · {trackInfo.vibe.tempo} ·
+                energy {Math.round(trackInfo.vibe.energy * 100)}%
+              </p>
+            )}
+            {liveVibe && (
+              <p className="live-vibe">
+                Live vibe: <strong>{liveVibe.mood}</strong> · {Math.round(liveVibe.energy * 100)}% —
+                recommendations update as you listen
+              </p>
+            )}
             <span>Genre: {trackInfo.genre}</span>
             <span>Region: {trackInfo.country}</span>
           </div>
@@ -164,7 +197,7 @@ export default function App() {
 
       {beers.length > 0 && (
         <section className="beers-section">
-          <h2>Beer pairings</h2>
+          <h2>Based on this vibe we recommend</h2>
           <div className="beer-grid">
             {beers.map((beer) => (
               <BeerCard key={beer.name} beer={beer} onTry={handlePairingTried} />

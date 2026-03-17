@@ -9,6 +9,14 @@
   padding: 0.5rem 0;
 }
 
+.header .logo {
+  display: block;
+  margin: 0 auto 0.75rem;
+  width: 120px;
+  height: auto;
+  object-fit: contain;
+}
+
 .header h1 {
   margin: 0;
   font-size: 1.75rem;

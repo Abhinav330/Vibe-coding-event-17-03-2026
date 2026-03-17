@@ -1,12 +1,22 @@
 /**
  * BrewBeats Beer Matcher
- * GET /beers?country=DE → [{ name, img, style, buy }]
- * Stub: 3 hardcoded beers per country.
+ * GET /beers?country=DE&mood=party&energy=0.8 → [{ name, img, style, buy }]
+ * Recommends beers based on song vibe first (mood + energy), then country.
  */
 
 const PORT = 4002;
 
 type Beer = { name: string; img: string; style: string; buy: string };
+
+/** Vibe → beer styles that match. Used to recommend alcohol from song vibe. */
+const VIBE_TO_STYLES: Record<string, string[]> = {
+  party: ["IPA", "Pale Ale", "Belgian Strong", "Tripel"],
+  intense: ["IPA", "Stout", "Doppelbock"],
+  uplifting: ["Pale Ale", "Hefeweizen", "ESB"],
+  groovy: ["Lager", "Red Ale", "Pilsner"],
+  chill: ["Pilsner", "Lager", "Hefeweizen", "ESB"],
+  melancholic: ["Stout", "Dubbel", "Dark Lager"],
+};
 
 const BEERS_BY_COUNTRY: Record<string, Beer[]> = {
   DE: [
@@ -148,9 +158,27 @@ const server = Bun.serve({
     }
     if (url.pathname === "/beers" && req.method === "GET") {
       const country = (url.searchParams.get("country") ?? "DE").toUpperCase();
-      const beers = BEERS_BY_COUNTRY[country] ?? DEFAULT_BEERS;
-      const level = Number.parseInt(url.searchParams.get("level") ?? "1", 10);
-      // Level 3+ could return "premium" beers (same list for stub; filter in real impl)
+      const mood = url.searchParams.get("mood") ?? "";
+      let beers = BEERS_BY_COUNTRY[country] ?? DEFAULT_BEERS;
+
+      // Recommend by vibe first: filter beers whose style matches the song's mood
+      if (mood && VIBE_TO_STYLES[mood]) {
+        const preferredStyles = new Set(VIBE_TO_STYLES[mood].map((s) => s.toLowerCase()));
+        const matching = beers.filter((b) => preferredStyles.has(b.style.toLowerCase()));
+        if (matching.length > 0) {
+          beers = matching;
+        } else {
+          // No exact match: sort so vibe-matched styles come first
+          beers = [...beers].sort((a, b) => {
+            const aMatch = preferredStyles.has(a.style.toLowerCase());
+            const bMatch = preferredStyles.has(b.style.toLowerCase());
+            if (aMatch && !bMatch) return -1;
+            if (!aMatch && bMatch) return 1;
+            return 0;
+          });
+        }
+      }
+
       return Response.json(beers, {
         headers: { "Access-Control-Allow-Origin": "*" },
       });

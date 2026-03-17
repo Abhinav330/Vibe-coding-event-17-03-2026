@@ -10,62 +10,38 @@ Paste a music URL (YouTube/Spotify/SoundCloud) → get beer pairings by country/
 
 ```
 brewbeats/
-├── ui/                 # React + Vite (Team 1 – UI/UX)
+├── ui/                 # React + Vite – single UI (port 3000)
 ├── backend/
-│   ├── analyzer/       # POST /analyze?url=... → { genre, country }
-│   └── beer-matcher/   # GET /beers?country=... → [ { name, img, buy } ]
-├── gamify/             # Gamification (Team 3): profile, points, badges
+│   └── index.ts        # Single API server (port 4000): analyze, beers, profile, gamify
 └── README.md
 ```
 
-## Run locally (no Docker)
+## Run locally (one project, one API port)
 
-### 1. Backend – Analyzer
+**Terminal 1 – API (port 4000)**
 
 ```bash
-cd brewbeats/backend/analyzer
-bun install
 bun run dev
-# → http://localhost:4001
+# → http://localhost:4000
 ```
 
-### 2. Backend – Beer Matcher
+**Terminal 2 – UI (port 3000)**
 
 ```bash
-cd brewbeats/backend/beer-matcher
-bun install
-bun run dev
-# → http://localhost:4002
-```
-
-### 3. Gamification
-
-```bash
-cd brewbeats/gamify
-bun install
-bun run dev
-# → http://localhost:4003
-```
-
-### 4. UI
-
-```bash
-cd brewbeats/ui
-npm install
-npm run dev
+bun run dev:ui
 # → http://localhost:3000
 ```
 
 Then open http://localhost:3000, paste a URL, and get beers + earn points.
 
-## API summary
+## API summary (single server :4000)
 
-| Service      | Endpoint              | Method | Description                    |
-|-------------|------------------------|--------|--------------------------------|
-| analyzer    | `/analyze?url=...`     | POST   | Returns `{ genre, country }`   |
-| beer-matcher| `/beers?country=DE`    | GET    | Returns 3 beers with img/buy   |
-| gamify      | `/profile`             | GET    | Points, level, streak, badges  |
-| gamify      | `/pairing-tried`       | POST   | +10 pts for trying a pairing   |
+| Endpoint         | Method | Description                    |
+|------------------|--------|--------------------------------|
+| `/analyze?url=...` | POST | Returns `{ genre, country }`   |
+| `/beers?country=DE` | GET  | Returns 3 beers with img/buy   |
+| `/profile`        | GET  | Points, level, streak, badges  |
+| `/pairing-tried`  | POST | +10 pts for trying a pairing  |
 
 ## Sprint tracker
 

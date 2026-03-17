@@ -6,17 +6,10 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      "/api/analyzer": {
-        target: "http://localhost:4001",
-        rewrite: (p) => p.replace(/^\/api\/analyzer/, ""),
-      },
-      "/api/beers": {
-        target: "http://localhost:4002",
-        rewrite: (p) => p.replace(/^\/api\/beers/, ""),
-      },
-      "/api/gamify": {
-        target: "http://localhost:4003",
-        rewrite: (p) => p.replace(/^\/api\/gamify/, ""),
+      "/api": {
+        target: "http://localhost:4000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },
   },
