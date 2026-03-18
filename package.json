@@ -3,19 +3,35 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "npm@10",
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
-    "dev": "sh -c 'P=$(lsof -ti :4000); [ -n \"$P\" ] && kill $P 2>/dev/null; true' && bun run --watch brewbeats/backend/index.ts",
-    "dev:ui": "cd brewbeats/ui && npm run dev",
+    "dev": "next dev",
+    "dev:ui": "next dev -p 3000",
+    "dev:api": "sh -c 'P=$(lsof -ti :4000); [ -n \"$P\" ] && kill $P 2>/dev/null; true' && bun run --watch brewbeats/backend/index.ts",
     "dev:all": "./dev.sh",
-    "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir=dist --target=bun",
+    "start": "next start",
+    "build": "next build",
+    "build:api": "bun build src/index.ts --outdir=dist --target=bun",
     "test": "bun test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write ."
   },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "next": "^16.1.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "bun-types": "latest"
+    "@types/node": "^24.6.1",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "bun-types": "latest",
+    "typescript": "^5.9.3"
   }
 }
