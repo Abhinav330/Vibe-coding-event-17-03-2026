@@ -4,6 +4,8 @@
  * Recommends beers based on song vibe first (mood + energy), then country.
  */
 
+export {};
+
 const PORT = 4002;
 
 type Beer = { name: string; img: string; style: string; buy: string };

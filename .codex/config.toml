@@ -1,0 +1,15 @@
+# Codex config for convert_then_deploy: multi-agent (converter + fix_and_deploy worker)
+# Used only when route is convert_then_deploy. Enable multi-agent and define two roles.
+
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+
+[agents.converter]
+description = "Convert this Vite (or similar) codebase to Next.js: App Router, next.config.js/mjs only (no .ts), strict TypeScript, nested app roots handled correctly, Bun/pnpm/yarn/npm respected, Vite entry points removed, import.meta.env → process.env. Ensure all CSS @imports are at the top of files. Create supabase/migrations if the app uses a DB. Output must pass tsc --noEmit and next build; do not run installs or build commands."
+
+[agents.fix_and_deploy]
+description = "After conversion: add netlify.toml, .env.example, fix any remaining build/lint errors. Remember this is a Vite→Next.js project: fix CSS @import order, vitest config without Vite plugins, next.config.js/mjs only, and respect the detected package manager (including Bun). Do not run installs or build commands."

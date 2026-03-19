@@ -14,10 +14,12 @@ for port in 4000 3000 3001 3002; do
 done
 sleep 1
 
-echo "Starting backend (port 4000) and UI (port 3000)..."
+echo "Starting backend (port 4000) and Next.js app (port 3000)..."
 bun run --watch brewbeats/backend/index.ts &
 BACKEND_PID=$!
+npm run dev &
+NEXT_PID=$!
 
-trap "kill $BACKEND_PID 2>/dev/null || true; exit 0" EXIT INT TERM
+trap "kill $BACKEND_PID $NEXT_PID 2>/dev/null || true; exit 0" EXIT INT TERM
 
-cd brewbeats/ui && npm run dev
+wait $NEXT_PID

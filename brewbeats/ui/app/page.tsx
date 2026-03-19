@@ -1,27 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import "./App.css";
+"use client";
 
-const API = {
-  analyze: (url: string) =>
-    fetch(`/api/analyze?url=${encodeURIComponent(url)}`, { method: "POST" }).then((r) => r.json()),
-  beers: (
-    country: string,
-    level?: number,
-    vibe?: { mood: string; energy: number },
-    seed?: string,
-  ) =>
-    fetch(
-      `/api/beers?country=${country}${level != null ? `&level=${level}` : ""}${vibe?.mood ? `&mood=${encodeURIComponent(vibe.mood)}&energy=${vibe.energy}` : ""}${seed ? `&seed=${encodeURIComponent(seed)}` : ""}`,
-    ).then((r) => r.json()),
-  profile: () => fetch("/api/profile").then((r) => r.json()),
-  pairingTried: (body: { trackOrPlaylist?: string; drinkName?: string }) =>
-    fetch("/api/pairing-tried", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then((r) => r.json()),
-  history: () => fetch("/api/history").then((r) => r.json()),
-};
+import { useCallback, useEffect, useState, type ClipboardEvent, type FormEvent } from "react";
 
 type Pricing = { company: string; price: string; url: string };
 type Drink = {
@@ -45,31 +24,86 @@ type Profile = {
   streak: number;
   badges: string[];
 };
+type Vibe = { energy: number; mood: string; tempo: string };
+type AnalyzeResponse = {
+  genre: string;
+  country: string;
+  vibe?: Vibe;
+  isPlaylist?: boolean;
+};
+type LeaderboardEntry = {
+  userId: string;
+  points: number;
+  level: string;
+};
+type PairingTriedResponse = {
+  points: number;
+  level: string;
+};
+
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
+
+function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
+
+function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  return fetch(apiUrl(path), init).then(async (response) => {
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+    return (await response.json()) as T;
+  });
+}
+
+const API = {
+  analyze: (url: string) => {
+    const params = new URLSearchParams({ url });
+    return fetchJson<AnalyzeResponse>(`/api/analyze?${params.toString()}`, { method: "POST" });
+  },
+  beers: (country: string, level?: number, vibe?: { mood: string; energy: number }, seed?: string) => {
+    const params = new URLSearchParams({ country });
+    if (level != null) params.set("level", String(level));
+    if (vibe?.mood) {
+      params.set("mood", vibe.mood);
+      params.set("energy", String(vibe.energy));
+    }
+    if (seed) params.set("seed", seed);
+    return fetchJson<Drink[]>(`/api/beers?${params.toString()}`);
+  },
+  profile: () => fetchJson<Profile>("/api/profile"),
+  pairingTried: (body: { trackOrPlaylist?: string; drinkName?: string }) =>
+    fetchJson<PairingTriedResponse>("/api/pairing-tried", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  history: () => fetchJson<ConnectionEntry[]>("/api/history"),
+  leaderboard: () => fetchJson<LeaderboardEntry[]>("/api/leaderboard"),
+};
 
 const VALID_HOSTS = ["youtube.com", "youtu.be", "spotify.com", "soundcloud.com"];
 const DIRECT_AUDIO_EXT = [".mp3", ".wav", ".ogg", ".m4a", ".aac"];
 
 function isValidUrl(url: string): boolean {
   try {
-    const u = new URL(url);
-    if (!u.protocol.startsWith("http")) return false;
-    return VALID_HOSTS.some((h) => u.hostname.includes(h)) || isDirectAudioUrl(url);
+    const parsedUrl = new URL(url);
+    if (!parsedUrl.protocol.startsWith("http")) return false;
+    return VALID_HOSTS.some((host) => parsedUrl.hostname.includes(host)) || isDirectAudioUrl(url);
   } catch {
     return false;
   }
 }
 
-/** True if the URL is a direct audio file we can play and analyze in real time */
 function isDirectAudioUrl(url: string): boolean {
   try {
     const path = new URL(url).pathname.toLowerCase();
-    return DIRECT_AUDIO_EXT.some((ext) => path.endsWith(ext));
+    return DIRECT_AUDIO_EXT.some((extension) => path.endsWith(extension));
   } catch {
     return false;
   }
 }
 
-/** True if URL is YouTube (used to show embed-fallback hint) */
 function isYouTubeUrl(inputUrl: string): boolean {
   try {
     const host = new URL(inputUrl.trim()).hostname.toLowerCase();
@@ -79,29 +113,29 @@ function isYouTubeUrl(inputUrl: string): boolean {
   }
 }
 
-/** True if URL is a YouTube playlist (embed needs different height) */
 function isYouTubePlaylistUrl(inputUrl: string): boolean {
   try {
-    const u = new URL(inputUrl.trim());
-    const host = u.hostname.toLowerCase();
+    const parsedUrl = new URL(inputUrl.trim());
+    const host = parsedUrl.hostname.toLowerCase();
     if (!host.includes("youtube.com") && !host.includes("youtu.be")) return false;
-    return u.pathname.toLowerCase().includes("playlist") || u.searchParams.has("list");
+    return (
+      parsedUrl.pathname.toLowerCase().includes("playlist") || parsedUrl.searchParams.has("list")
+    );
   } catch {
     return false;
   }
 }
 
-/** Convert track/playlist URL to embed URL for YouTube, Spotify, or SoundCloud; null if not embeddable */
 function getEmbedUrl(inputUrl: string): string | null {
   try {
-    const raw = inputUrl.trim();
-    const u = new URL(raw);
-    const host = u.hostname.toLowerCase();
-    const pathname = u.pathname.toLowerCase();
+    const trimmedUrl = inputUrl.trim();
+    const parsedUrl = new URL(trimmedUrl);
+    const host = parsedUrl.hostname.toLowerCase();
+    const pathname = parsedUrl.pathname.toLowerCase();
     const embedBase = "https://www.youtube-nocookie.com/embed";
 
     if (host.includes("youtube.com") || host.includes("youtu.be")) {
-      const listId = u.searchParams.get("list");
+      const listId = parsedUrl.searchParams.get("list");
       const isPlaylistPage = pathname.includes("playlist");
       if (isPlaylistPage || listId) {
         const id = listId?.trim();
@@ -110,29 +144,31 @@ function getEmbedUrl(inputUrl: string): string | null {
         }
         if (isPlaylistPage) return null;
       }
-      const v = host.includes("youtu.be")
+      const videoId = host.includes("youtu.be")
         ? pathname.slice(1).split("/")[0].split("?")[0]
-        : u.searchParams.get("v");
-      if (v?.trim()) return `${embedBase}/${encodeURIComponent(v.trim())}`;
+        : parsedUrl.searchParams.get("v");
+      if (videoId?.trim()) return `${embedBase}/${encodeURIComponent(videoId.trim())}`;
       return null;
     }
+
     if (host.includes("spotify.com")) {
-      const path = u.pathname.replace(/^\//, "").replace(/\/$/, "");
+      const path = parsedUrl.pathname.replace(/^\//, "").replace(/\/$/, "");
       if (path.startsWith("track/") || path.startsWith("playlist/") || path.startsWith("album/")) {
         return `https://open.spotify.com/embed/${path}`;
       }
       return null;
     }
+
     if (host.includes("soundcloud.com")) {
       return `https://w.soundcloud.com/player/?url=${encodeURIComponent(inputUrl)}`;
     }
+
     return null;
   } catch {
     return null;
   }
 }
 
-/** Label for "Open in …" link based on URL */
 function getOpenInLabel(inputUrl: string): string {
   try {
     const host = new URL(inputUrl.trim()).hostname.toLowerCase();
@@ -140,12 +176,11 @@ function getOpenInLabel(inputUrl: string): string {
     if (host.includes("spotify")) return "Open in Spotify";
     if (host.includes("soundcloud")) return "Open in SoundCloud";
   } catch {
-    // ignore
+    // Ignore invalid URLs.
   }
   return "Open in new tab";
 }
 
-/** Creative label for drink type (no default "beer") */
 function getPourLabel(type: "beer" | "wine" | "whisky" | "cider" | undefined): string {
   switch (type) {
     case "wine":
@@ -161,7 +196,6 @@ function getPourLabel(type: "beer" | "wine" | "whisky" | "cider" | undefined): s
   }
 }
 
-/** Short tagline for the pairing section based on type */
 function getPairingTagline(type: "beer" | "wine" | "whisky" | "cider" | undefined): string {
   switch (type) {
     case "wine":
@@ -177,19 +211,12 @@ function getPairingTagline(type: "beer" | "wine" | "whisky" | "cider" | undefine
   }
 }
 
-export default function App() {
+export default function Page() {
   const [url, setUrl] = useState("");
-  const [trackInfo, setTrackInfo] = useState<{
-    genre: string;
-    country: string;
-    vibe?: { energy: number; mood: string; tempo: string };
-    isPlaylist?: boolean;
-  } | null>(null);
+  const [trackInfo, setTrackInfo] = useState<AnalyzeResponse | null>(null);
   const [history, setHistory] = useState<ConnectionEntry[]>([]);
   const [beers, setBeers] = useState<Drink[]>([]);
-  const [leaderboard, setLeaderboard] = useState<
-    { userId: string; points: number; level: string }[]
-  >([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
   const [beersLoading, setBeersLoading] = useState(false);
@@ -207,9 +234,8 @@ export default function App() {
   }, [loadProfile]);
 
   const loadLeaderboard = useCallback(() => {
-    fetch("/api/leaderboard")
-      .then((r) => r.json())
-      .then(setLeaderboard)
+    API.leaderboard()
+      .then((entries) => setLeaderboard(Array.isArray(entries) ? entries : []))
       .catch(() => setLeaderboard([]));
   }, []);
 
@@ -219,7 +245,7 @@ export default function App() {
 
   const loadHistory = useCallback(() => {
     API.history()
-      .then((list) => setHistory(Array.isArray(list) ? list : []))
+      .then((entries) => setHistory(Array.isArray(entries) ? entries : []))
       .catch(() => setHistory([]));
   }, []);
 
@@ -227,14 +253,14 @@ export default function App() {
     loadHistory();
   }, [loadHistory]);
 
-  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
-    const text = e.clipboardData.getData("text").trim();
+  const handlePaste = useCallback((event: ClipboardEvent<HTMLInputElement>) => {
+    const text = event.clipboardData.getData("text").trim();
     if (text) setUrl(text);
   }, []);
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
+    async (event: FormEvent) => {
+      event.preventDefault();
       setError(null);
       setTrackInfo(null);
       setBeers([]);
@@ -244,18 +270,18 @@ export default function App() {
         setError("Unsupported URL. Use a track or playlist from YouTube, Spotify, or SoundCloud.");
         return;
       }
+
       setLoading(true);
       setBeersLoading(true);
       try {
         const analysis = await API.analyze(url);
         setTrackInfo(analysis);
-        setBeersLoading(true);
+
         const level = profile?.levelIndex ?? 0;
-        // Recommend alcohol based on vibe first (read vibe → then recommend)
         const list = await API.beers(analysis.country, level + 1, analysis.vibe, url.trim());
         setBeers(Array.isArray(list) ? list : []);
         setPairingTried(false);
-      } catch (err) {
+      } catch {
         setError("Analysis failed. Try again.");
       } finally {
         setLoading(false);
@@ -269,10 +295,13 @@ export default function App() {
     (drinkName: string) => {
       if (pairingTried) return;
       setPairingTried(true);
+
       const trackOrPlaylist = trackInfo?.isPlaylist ? "Playlist" : "Track";
       API.pairingTried({ trackOrPlaylist, drinkName })
         .then((data) => {
-          setProfile((p) => (p ? { ...p, points: data.points, level: data.level } : null));
+          setProfile((current) =>
+            current ? { ...current, points: data.points, level: data.level } : null,
+          );
           loadProfile();
           loadLeaderboard();
           loadHistory();
@@ -314,7 +343,7 @@ export default function App() {
         <input
           type="url"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(event) => setUrl(event.target.value)}
           onPaste={handlePaste}
           placeholder="Paste a track or playlist URL (YouTube, Spotify, SoundCloud)..."
           className="url-input"
@@ -352,7 +381,7 @@ export default function App() {
               <span className="disc-title">YOUR POUR</span>
               <span className="disc-tagline">{getPairingTagline(beers[0]?.type)}</span>
               <span className="disc-meta">
-                {getPourLabel(beers[0]?.type).toUpperCase()} · {trackInfo.genre} ·{" "}
+                {getPourLabel(beers[0]?.type).toUpperCase()} · {trackInfo.genre} · {" "}
                 {trackInfo.country}
               </span>
             </div>
@@ -360,11 +389,7 @@ export default function App() {
           <div className="beer-panels">
             <div className="beer-panels-left">
               {beers.slice(0, 2).map((drink) => (
-                <DrinkCard
-                  key={drink.name}
-                  drink={drink}
-                  onTry={() => handlePairingTried(drink.name)}
-                />
+                <DrinkCard key={drink.name} drink={drink} onTry={() => handlePairingTried(drink.name)} />
               ))}
             </div>
             <div className="beer-panels-right">
@@ -381,11 +406,7 @@ export default function App() {
           <h2 className="pairing-section-heading">Your picks · {getPourLabel(beers[0]?.type)}</h2>
           <div className="beer-grid">
             {beers.map((drink) => (
-              <DrinkCard
-                key={drink.name}
-                drink={drink}
-                onTry={() => handlePairingTried(drink.name)}
-              />
+              <DrinkCard key={drink.name} drink={drink} onTry={() => handlePairingTried(drink.name)} />
             ))}
           </div>
         </section>
@@ -396,6 +417,7 @@ export default function App() {
         (() => {
           const embedUrl = getEmbedUrl(url);
           const isPlaylist = isYouTubePlaylistUrl(url);
+
           return (
             <section className="track-section track-section-compact">
               <div className="play-options">
@@ -442,9 +464,7 @@ export default function App() {
             {pairingTried ? "✓" : ""}
           </span>
         </div>
-        {beers.length > 0 && !pairingTried && (
-          <p className="try-hint">Try a pairing to earn +10 points!</p>
-        )}
+        {beers.length > 0 && !pairingTried && <p className="try-hint">Try a pairing to earn +10 points!</p>}
       </div>
 
       <section className="history-section">
@@ -476,9 +496,9 @@ export default function App() {
         <h2>Leaderboard (Top 10)</h2>
         {leaderboard.length > 0 ? (
           <ol className="leaderboard-list">
-            {leaderboard.map((entry, i) => (
+            {leaderboard.map((entry, index) => (
               <li key={entry.userId}>
-                <span className="rank">{i + 1}.</span> {entry.userId}: {entry.points} pts ·{" "}
+                <span className="rank">{index + 1}.</span> {entry.userId}: {entry.points} pts · {" "}
                 {entry.level}
               </li>
             ))}
@@ -495,16 +515,11 @@ export default function App() {
   );
 }
 
-function DrinkCard({
-  drink,
-  onTry,
-}: {
-  drink: Drink;
-  onTry: () => void;
-}) {
+function DrinkCard({ drink, onTry }: { drink: Drink; onTry: () => void }) {
   const [imgError, setImgError] = useState(false);
   const buyUrl = drink.pricings?.[0]?.url ?? drink.buy ?? "https://www.amazon.com/s?k=drinks";
   const showImg = drink.img && !imgError;
+
   const fallbackIcon =
     drink.type === "wine"
       ? "🍷"
@@ -517,6 +532,7 @@ function DrinkCard({
             : drink.style?.toLowerCase().includes("lager")
               ? "🍻"
               : "🍺";
+
   return (
     <article className="beer-card beer-card-panel">
       <div className="beer-card-thumb">

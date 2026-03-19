@@ -4,6 +4,8 @@
  * Levels: Novice 0, Explorer 100, Master Brewer 500.
  */
 
+export {};
+
 const PORT = 4003;
 
 const LEVELS = [
